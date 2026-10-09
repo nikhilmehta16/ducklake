@@ -244,6 +244,11 @@ private:
 private:
 protected:
 	DuckLakeTransaction &transaction;
+
+	//! Serialize a data/delete file DEK for the catalog (wrapped when a KEK is attached)
+	string EncodeEncryptionKey(const string &dek);
+	//! Parse a stored encryption_key value back into a DEK
+	string DecodeEncryptionKey(const string &stored);
 	mutex paths_lock;
 	map<SchemaIndex, string> schema_paths;
 	map<TableIndex, string> table_paths;

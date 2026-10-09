@@ -28,6 +28,8 @@ struct DuckLakeOptions {
 	bool override_data_path = false;
 	AccessMode access_mode = AccessMode::AUTOMATIC;
 	DuckLakeEncryption encryption = DuckLakeEncryption::AUTOMATIC;
+	//! 32-byte key-encryption key; when set, per-file DEKs are stored wrapped in the catalog
+	string key_encryption_key;
 	bool create_if_not_exists = true;
 	bool migrate_if_required = true;
 	unique_ptr<BoundAtClause> at_clause;
