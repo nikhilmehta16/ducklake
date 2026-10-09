@@ -1,6 +1,7 @@
 #include "storage/ducklake_metadata_manager.hpp"
 #include "storage/ducklake_transaction.hpp"
 #include "common/ducklake_util.hpp"
+#include "common/ducklake_key_wrap.hpp"
 #include "duckdb/planner/tableref/bound_at_clause.hpp"
 #include "duckdb/common/types/blob.hpp"
 #include "storage/ducklake_catalog.hpp"
@@ -20,6 +21,18 @@
 namespace duckdb {
 
 DuckLakeMetadataManager::DuckLakeMetadataManager(DuckLakeTransaction &transaction) : transaction(transaction) {
+}
+
+string DuckLakeMetadataManager::EncodeEncryptionKey(const string &dek) {
+	auto &catalog = transaction.GetCatalog();
+	auto util = catalog.GetDatabase().GetEncryptionUtil();
+	return DuckLakeKeyWrap::Encode(*util, catalog.KeyEncryptionKey(), dek);
+}
+
+string DuckLakeMetadataManager::DecodeEncryptionKey(const string &stored) {
+	auto &catalog = transaction.GetCatalog();
+	auto util = catalog.GetDatabase().GetEncryptionUtil();
+	return DuckLakeKeyWrap::Decode(*util, catalog.KeyEncryptionKey(), stored);
 }
 
 DuckLakeMetadataManager::~DuckLakeMetadataManager() {
@@ -559,7 +572,7 @@ DuckLakeFileData DuckLakeMetadataManager::ReadDataFile(DuckLakeTableEntry &table
 			throw InvalidInputException("Database is encrypted, but file %s does not have an encryption key",
 			                            data.path);
 		}
-		data.encryption_key = Blob::FromBase64(row.template GetValue<string>(col_idx++));
+		data.encryption_key = DecodeEncryptionKey(row.template GetValue<string>(col_idx++));
 	}
 	return data;
 }
@@ -1984,8 +1997,7 @@ void DuckLakeMetadataManager::WriteNewDataFiles(DuckLakeSnapshot commit_snapshot
 		    file.begin_snapshot.IsValid() ? to_string(file.begin_snapshot.GetIndex()) : "{SNAPSHOT_ID}";
 		auto data_file_index = file.id.index;
 		auto table_id = file.table_id.index;
-		auto encryption_key =
-		    file.encryption_key.empty() ? "NULL" : "'" + Blob::ToBase64(string_t(file.encryption_key)) + "'";
+		auto encryption_key = file.encryption_key.empty() ? "NULL" : "'" + EncodeEncryptionKey(file.encryption_key) + "'";
 		string partial_file_info = "NULL";
 		if (!file.partial_file_info.empty()) {
 			if (file.max_partial_file_snapshot.IsValid()) {
@@ -2074,8 +2086,7 @@ void DuckLakeMetadataManager::WriteNewDeleteFiles(DuckLakeSnapshot commit_snapsh
 		auto delete_file_index = file.id.index;
 		auto table_id = file.table_id.index;
 		auto data_file_index = file.data_file_id.index;
-		auto encryption_key =
-		    file.encryption_key.empty() ? "NULL" : "'" + Blob::ToBase64(string_t(file.encryption_key)) + "'";
+		auto encryption_key = file.encryption_key.empty() ? "NULL" : "'" + EncodeEncryptionKey(file.encryption_key) + "'";
 		auto path = GetRelativePath(file.table_id, file.path);
 		delete_file_insert_query += StringUtil::Format(
 		    "(%d, %d, {SNAPSHOT_ID}, NULL, %d, %s, %s, 'parquet', %d, %d, %d, %s)", delete_file_index, table_id,
