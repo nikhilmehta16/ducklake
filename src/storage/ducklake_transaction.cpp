@@ -1472,6 +1472,10 @@ void DuckLakeTransaction::RunCommitLoop(DuckLakeSnapshot transaction_snapshot,
 		ducklake_catalog.SetCommittedSnapshotId(snapshot_id);
 	};
 	context.commit_info = state->commit_info;
+	if (!ducklake_catalog.KeyEncryptionKey().empty()) {
+		context.enc_util = ducklake_catalog.GetDatabase().GetEncryptionUtil().get();
+		context.kek = ducklake_catalog.KeyEncryptionKey();
+	}
 	state->Commit(transaction_snapshot, transaction_changes, retry_config, context);
 }
 

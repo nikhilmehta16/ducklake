@@ -11,6 +11,7 @@
 #include "duckdb/common/common.hpp"
 #include "duckdb/common/optional_idx.hpp"
 #include "duckdb/common/types/blob.hpp"
+#include "common/ducklake_key_wrap.hpp"
 
 namespace duckdb {
 
@@ -33,9 +34,15 @@ bool OptBoolFalse(ROW &row, idx_t col) {
 }
 
 template <class ROW>
-void ReadEncryptionKey(ROW &row, idx_t col, string &out) {
+void ReadEncryptionKey(ROW &row, idx_t col, string &out, EncryptionUtil *enc_util = nullptr,
+                       const string &kek = string()) {
 	if (!row.IsNull(col)) {
-		out = Blob::FromBase64(string_t(row.template GetValue<string>(col)));
+		auto stored = row.template GetValue<string>(col);
+		if (enc_util) {
+			out = DuckLakeKeyWrap::Decode(*enc_util, kek, stored);
+		} else {
+			out = Blob::FromBase64(string_t(stored));
+		}
 	}
 }
 

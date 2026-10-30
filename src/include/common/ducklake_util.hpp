@@ -18,6 +18,7 @@ namespace duckdb {
 class DataChunk;
 class ColumnList;
 class DuckLakeMetadataManager;
+class EncryptionUtil;
 class FileSystem;
 class TableFilter;
 class DynamicFilter;
@@ -56,7 +57,8 @@ public:
 
 	static string MappingIdOrNull(const MappingIndex &m);
 
-	static string EncryptionKeyLiteral(const string &key);
+	static string EncryptionKeyLiteral(const string &key, EncryptionUtil *enc_util = nullptr,
+	                                   const string &kek = string());
 
 	static const char *BoolLiteral(bool v);
 
