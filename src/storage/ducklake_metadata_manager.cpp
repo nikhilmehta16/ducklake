@@ -1046,7 +1046,7 @@ DuckLakeFileData DuckLakeMetadataManager::ReadDataFile(DuckLakeTableEntry &table
 			throw InvalidInputException("Database is encrypted, but file %s does not have an encryption key",
 			                            data.path);
 		}
-		data.encryption_key = Blob::FromBase64(row.template GetValue<string>(col_idx++));
+		data.encryption_key = Blob::FromBase64(string_t(row.template GetValue<string>(col_idx++)));
 	}
 	return data;
 }

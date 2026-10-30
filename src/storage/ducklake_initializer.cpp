@@ -10,6 +10,8 @@
 #include "storage/ducklake_catalog.hpp"
 #include "storage/ducklake_transaction.hpp"
 #include "storage/ducklake_schema_entry.hpp"
+#include "common/ducklake_key_wrap.hpp"
+#include "duckdb/common/types/blob.hpp"
 
 namespace duckdb {
 
@@ -136,8 +138,27 @@ void DuckLakeInitializer::InitializeNewDuckLake(DuckLakeTransaction &transaction
 		options.data_path = path + ".files";
 		InitializeDataPath();
 	}
+	if (!catalog.KeyEncryptionKey().empty() && catalog.Encryption() != DuckLakeEncryption::ENCRYPTED) {
+		throw InvalidInputException("KEY_ENCRYPTION_KEY requires ENCRYPTED true");
+	}
 	auto &metadata_manager = transaction.GetMetadataManager();
 	metadata_manager.InitializeDuckLake(has_explicit_schema, catalog.Encryption());
+	if (!catalog.KeyEncryptionKey().empty()) {
+		auto result = transaction.Query(
+		    "INSERT INTO {METADATA_CATALOG}.ducklake_metadata (key, value) VALUES ('key_wrapping', 'kek1')");
+		if (result->HasError()) {
+			result->GetErrorObject().Throw("Failed to store key_wrapping metadata: ");
+		}
+		auto &enc_util = *catalog.GetDatabase().GetEncryptionUtil();
+		auto check_value = DuckLakeKeyWrap::Wrap(enc_util, catalog.KeyEncryptionKey(), "DuckLakeKEKCheck");
+		auto check_b64 = Blob::ToBase64(string_t(check_value));
+		auto check_result = transaction.Query(
+		    "INSERT INTO {METADATA_CATALOG}.ducklake_metadata (key, value) VALUES ('key_wrapping_check', '" +
+		    check_b64 + "')");
+		if (check_result->HasError()) {
+			check_result->GetErrorObject().Throw("Failed to store key_wrapping_check metadata: ");
+		}
+	}
 	if (catalog.Encryption() == DuckLakeEncryption::AUTOMATIC) {
 		// default to unencrypted
 		catalog.SetEncryption(DuckLakeEncryption::UNENCRYPTED);
@@ -208,6 +229,25 @@ void DuckLakeInitializer::LoadExistingDuckLake(DuckLakeTransaction &transaction)
 				catalog.SetEncryption(DuckLakeEncryption::UNENCRYPTED);
 			} else {
 				throw NotImplementedException("Encrypted should be either true or false");
+			}
+		}
+		if (tag.key == "key_wrapping") {
+			if (tag.value != "kek1") {
+				throw NotImplementedException("Unknown key wrapping version: %s", tag.value);
+			}
+			if (catalog.KeyEncryptionKey().empty()) {
+				throw InvalidInputException(
+				    "This catalog uses key wrapping (key_wrapping=kek1). "
+				    "Provide KEY_ENCRYPTION_KEY at ATTACH time.");
+			}
+		}
+		if (tag.key == "key_wrapping_check" && !catalog.KeyEncryptionKey().empty()) {
+			auto wrapped = Blob::FromBase64(string_t(tag.value));
+			try {
+				auto &enc_util = *catalog.GetDatabase().GetEncryptionUtil();
+				DuckLakeKeyWrap::Unwrap(enc_util, catalog.KeyEncryptionKey(), wrapped);
+			} catch (...) {
+				throw InvalidInputException("KEY_ENCRYPTION_KEY is incorrect — check value verification failed");
 			}
 		}
 		options.config_options[tag.key] = tag.value;

@@ -259,8 +259,9 @@ ReaderInitializeType DuckLakeMultiFileReader::InitializeReader(MultiFileReaderDa
 		} else if (!file_entry.delete_file.path.empty() || file_entry.max_row_count.IsValid() ||
 		           !file_entry.inlined_file_deletions.empty()) {
 			auto delete_filter = make_uniq<DuckLakeDeleteFilter>();
+			auto *ducklake_catalog_ptr = &read_info.table.ParentCatalog().Cast<DuckLakeCatalog>();
 			if (!file_entry.delete_file.path.empty()) {
-				delete_filter->Initialize(context, file_entry.delete_file);
+				delete_filter->Initialize(context, file_entry.delete_file, ducklake_catalog_ptr);
 			}
 			if (delete_map && !file_entry.delete_file.path.empty()) {
 				auto delete_data_copy = make_shared_ptr<DuckLakeDeleteData>(*delete_filter->delete_data);
@@ -289,7 +290,8 @@ ReaderInitializeType DuckLakeMultiFileReader::InitializeReader(MultiFileReaderDa
 		if (file_entry.data_type == DuckLakeDataType::DATA_FILE) {
 			auto &delete_entry = file_list.GetDeleteScanEntry(file_idx);
 			auto delete_filter = make_uniq<DuckLakeDeleteFilter>();
-			delete_filter->Initialize(context, delete_entry);
+			auto *ducklake_catalog_ptr = &read_info.table.ParentCatalog().Cast<DuckLakeCatalog>();
+			delete_filter->Initialize(context, delete_entry, ducklake_catalog_ptr);
 			reader.deletion_filter = std::move(delete_filter);
 		}
 	}

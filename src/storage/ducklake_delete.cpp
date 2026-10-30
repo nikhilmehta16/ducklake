@@ -57,7 +57,8 @@ static DuckLakeDeleteFile WriteDeleteFileInternal(ClientContext &context, InputT
 
 	if (!input.encryption_key.empty()) {
 		child_list_t<Value> enc_values;
-		enc_values.emplace_back("footer_key_value", Value::BLOB_RAW(input.encryption_key));
+		auto raw_dek = input.transaction.GetCatalog().UnwrapEncryptionKey(input.encryption_key);
+		enc_values.emplace_back("footer_key_value", Value::BLOB_RAW(raw_dek));
 		vector<Value> encryption_input;
 		encryption_input.push_back(Value::STRUCT(std::move(enc_values)));
 		info->options["encryption_config"] = std::move(encryption_input);

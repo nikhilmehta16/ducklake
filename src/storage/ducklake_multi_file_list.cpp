@@ -13,6 +13,7 @@
 #include "duckdb/optimizer/filter_combiner.hpp"
 #include "duckdb/planner/table_filter.hpp"
 #include "storage/ducklake_table_entry.hpp"
+#include "storage/ducklake_catalog.hpp"
 
 namespace duckdb {
 
@@ -188,7 +189,9 @@ OpenFileInfo DuckLakeMultiFileList::GetFile(idx_t i) const {
 		}
 		extended_info->options["snapshot_id"] = std::move(snapshot_id);
 		if (!file.encryption_key.empty()) {
-			extended_info->options["encryption_key"] = Value::BLOB_RAW(file.encryption_key);
+			auto &ducklake_catalog = read_info.table.ParentCatalog().Cast<DuckLakeCatalog>();
+			extended_info->options["encryption_key"] =
+			    Value::BLOB_RAW(ducklake_catalog.UnwrapEncryptionKey(file.encryption_key));
 		}
 		// files managed by DuckLake are never modified - we can keep them cached
 		extended_info->options["validate_external_file_cache"] = Value::BOOLEAN(false);

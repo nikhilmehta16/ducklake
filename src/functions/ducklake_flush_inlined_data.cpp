@@ -480,7 +480,7 @@ LEFT JOIN (
 					file_info.existing_delete_begin_snapshot = chunk->GetValue(8, row_idx).GetValue<idx_t>();
 					if (!chunk->GetValue(9, row_idx).IsNull()) {
 						file_info.existing_delete_encryption_key =
-						    Blob::FromBase64(chunk->GetValue(9, row_idx).GetValue<string>());
+						    Blob::FromBase64(string_t(chunk->GetValue(9, row_idx).GetValue<string>()));
 					}
 					if (!chunk->GetValue(10, row_idx).IsNull()) {
 						file_info.existing_delete_format =
@@ -534,7 +534,8 @@ LEFT JOIN (
 			existing_delete_file_data.encryption_key = file_info.existing_delete_encryption_key;
 			existing_delete_file_data.format = file_info.existing_delete_format;
 
-			auto existing_deletions = DuckLakeDeleteFilter::ScanDeleteFile(context, existing_delete_file_data);
+			auto existing_deletions =
+			    DuckLakeDeleteFilter::ScanDeleteFile(context, existing_delete_file_data, optional_idx(), optional_idx(), &catalog);
 
 			// Merge existing deletions with new inlined deletions
 			MergeDeletesWithSnapshots(existing_deletions, file_info.existing_delete_begin_snapshot, merged_deletions);
