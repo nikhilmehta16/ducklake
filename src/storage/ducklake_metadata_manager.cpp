@@ -1,4 +1,5 @@
 #include "storage/ducklake_metadata_manager.hpp"
+#include "common/ducklake_key_wrap.hpp"
 #include "storage/ducklake_transaction.hpp"
 #include "storage/ducklake_variant_stats.hpp"
 #include "common/ducklake_util.hpp"
@@ -32,6 +33,18 @@
 namespace duckdb {
 
 DuckLakeMetadataManager::DuckLakeMetadataManager(DuckLakeTransaction &transaction) : transaction(transaction) {
+}
+
+string DuckLakeMetadataManager::EncodeEncryptionKey(const string &dek) {
+	auto &catalog = transaction.GetCatalog();
+	auto util = catalog.GetDatabase().GetEncryptionUtil();
+	return DuckLakeKeyWrap::Encode(*util, catalog.KeyEncryptionKey(), dek);
+}
+
+string DuckLakeMetadataManager::DecodeEncryptionKey(const string &stored) {
+	auto &catalog = transaction.GetCatalog();
+	auto util = catalog.GetDatabase().GetEncryptionUtil();
+	return DuckLakeKeyWrap::Decode(*util, catalog.KeyEncryptionKey(), stored);
 }
 
 DuckLakeMetadataManager::~DuckLakeMetadataManager() {
@@ -1046,7 +1059,7 @@ DuckLakeFileData DuckLakeMetadataManager::ReadDataFile(DuckLakeTableEntry &table
 			throw InvalidInputException("Database is encrypted, but file %s does not have an encryption key",
 			                            data.path);
 		}
-		data.encryption_key = Blob::FromBase64(row.template GetValue<string>(col_idx++));
+		data.encryption_key = DecodeEncryptionKey(row.template GetValue<string>(col_idx++));
 	}
 	return data;
 }
@@ -3535,7 +3548,7 @@ string DuckLakeMetadataManager::WriteNewDataFilesWithAppender(DuckLakeSnapshot &
 		}
 		if (!file.encryption_key.empty()) {
 			data_file_appender.Append<string_t>(
-			    string_t(Blob::ToBase64(string_t(file.encryption_key)))); // encryption_key
+			    string_t(EncodeEncryptionKey(file.encryption_key))); // encryption_key
 		} else {
 			data_file_appender.Append(Value());
 		}
@@ -3724,11 +3737,16 @@ string DuckLakeMetadataManager::WriteNewDataFiles(DuckLakeSnapshot &commit_snaps
 	for (auto &file : new_files) {
 		resolved_paths.push_back(GetRelativePath(file.table_id, file.file_name, new_tables, new_schemas_result));
 	}
-	return WriteNewDataFilesSqlBatch(new_files, resolved_paths);
+	auto &cat = transaction.GetCatalog();
+	return WriteNewDataFilesSqlBatch(new_files, resolved_paths,
+	                                 cat.GetDatabase().GetEncryptionUtil().get(),
+	                                 cat.KeyEncryptionKey());
 }
 
 string DuckLakeMetadataManager::WriteNewDataFilesSqlBatch(const vector<DuckLakeFileInfo> &new_files,
-                                                          const vector<DuckLakePath> &resolved_paths) {
+                                                          const vector<DuckLakePath> &resolved_paths,
+                                                          EncryptionUtil *enc_util,
+                                                          const string &kek) {
 	if (new_files.empty()) {
 		return string();
 	}
@@ -3750,7 +3768,7 @@ string DuckLakeMetadataManager::WriteNewDataFilesSqlBatch(const vector<DuckLakeF
 		    file.begin_snapshot.IsValid() ? to_string(file.begin_snapshot.GetIndex()) : "{SNAPSHOT_ID}";
 		auto data_file_index = file.id.index;
 		auto table_id = file.table_id.index;
-		auto encryption_key = DuckLakeUtil::EncryptionKeyLiteral(file.encryption_key);
+		auto encryption_key = file.encryption_key.empty() ? "NULL" : "'" + DuckLakeKeyWrap::Encode(*enc_util, kek, file.encryption_key) + "'";
 		string partial_max = DuckLakeUtil::OptionalIdxOrNull(file.max_partial_file_snapshot);
 		string footer_size = DuckLakeUtil::OptionalIdxOrNull(file.footer_size);
 		string mapping = DuckLakeUtil::MappingIdOrNull(file.mapping_id);
@@ -3869,7 +3887,9 @@ WHERE delete_file_id IN (%s);
 }
 
 string DuckLakeMetadataManager::WriteNewDeleteFiles(const vector<DuckLakeDeleteFileInfo> &new_files,
-                                                    const vector<DuckLakePath> &resolved_paths) {
+                                                    const vector<DuckLakePath> &resolved_paths,
+                                                    EncryptionUtil *enc_util,
+                                                    const string &kek) {
 	if (new_files.empty()) {
 		return {};
 	}
@@ -3886,7 +3906,7 @@ string DuckLakeMetadataManager::WriteNewDeleteFiles(const vector<DuckLakeDeleteF
 		auto delete_file_index = file.id.index;
 		auto table_id = file.table_id.index;
 		auto data_file_index = file.data_file_id.index;
-		auto encryption_key = DuckLakeUtil::EncryptionKeyLiteral(file.encryption_key);
+		auto encryption_key = file.encryption_key.empty() ? "NULL" : "'" + DuckLakeKeyWrap::Encode(*enc_util, kek, file.encryption_key) + "'";
 		// Use explicit begin_snapshot if set (for flush operations), otherwise use commit snapshot
 		string begin_snapshot_str =
 		    file.begin_snapshot.IsValid() ? std::to_string(file.begin_snapshot.GetIndex()) : "{SNAPSHOT_ID}";
