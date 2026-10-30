@@ -28,6 +28,7 @@
 
 namespace duckdb {
 class ColumnList;
+class EncryptionUtil;
 class DuckLakeCatalogSet;
 class DuckLakeSchemaEntry;
 class DuckLakeTableEntry;
@@ -258,7 +259,9 @@ public:
 	//! {METADATA_CATALOG} / {SNAPSHOT_ID} placeholders. Caller supplies resolved paths (one per file,
 	//! same order) since path policy differs across callers (schema-relative vs. always-absolute).
 	static string WriteNewDataFilesSqlBatch(const vector<DuckLakeFileInfo> &new_files,
-	                                        const vector<DuckLakePath> &resolved_paths);
+	                                        const vector<DuckLakePath> &resolved_paths,
+	                                        EncryptionUtil *enc_util = nullptr,
+	                                        const string &kek = string());
 	//! Opt-in fast-path: if this backend supports the DuckDB Appender API, write the files directly
 	bool TryAppendDataFiles(DuckLakeSnapshot &commit_snapshot, const vector<DuckLakeFileInfo> &new_files,
 	                        const vector<DuckLakeTableInfo> &new_tables,
@@ -297,7 +300,9 @@ public:
 	                                           const vector<DuckLakePath> &resolved_paths);
 	//! Caller supplies one resolved path per new delete file, in the same order.
 	static string WriteNewDeleteFiles(const vector<DuckLakeDeleteFileInfo> &new_delete_files,
-	                                  const vector<DuckLakePath> &resolved_paths);
+	                                  const vector<DuckLakePath> &resolved_paths,
+	                                  EncryptionUtil *enc_util = nullptr,
+	                                  const string &kek = string());
 	static string WriteNewMacros(const vector<DuckLakeMacroInfo> &new_macros);
 
 	virtual vector<DuckLakeColumnMappingInfo> GetColumnMappings(optional_idx start_from);

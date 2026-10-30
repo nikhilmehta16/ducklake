@@ -28,6 +28,7 @@ struct DuckLakeOptions {
 	bool override_data_path = false;
 	AccessMode access_mode = AccessMode::AUTOMATIC;
 	DuckLakeEncryption encryption = DuckLakeEncryption::AUTOMATIC;
+	string key_encryption_key;
 	bool create_if_not_exists = true;
 	bool automatic_migration = false;
 	bool hide_metadata_catalog = true;

@@ -1,4 +1,5 @@
 #include "common/ducklake_util.hpp"
+#include "common/ducklake_key_wrap.hpp"
 #include "duckdb/parser/column_list.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/common/types/blob.hpp"
@@ -429,9 +430,12 @@ string DuckLakeUtil::MappingIdOrNull(const MappingIndex &m) {
 	return m.IsValid() ? std::to_string(m.index) : "NULL";
 }
 
-string DuckLakeUtil::EncryptionKeyLiteral(const string &key) {
+string DuckLakeUtil::EncryptionKeyLiteral(const string &key, EncryptionUtil *enc_util, const string &kek) {
 	if (key.empty()) {
 		return "NULL";
+	}
+	if (enc_util && !kek.empty()) {
+		return "'" + DuckLakeKeyWrap::Encode(*enc_util, kek, key) + "'";
 	}
 	return "'" + Blob::ToBase64(string_t(key)) + "'";
 }

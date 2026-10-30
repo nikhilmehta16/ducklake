@@ -1480,7 +1480,8 @@ string DuckLakeTransactionState::CommitChanges(DuckLakeCommitState &commit_state
 			    file.table_id, file.file_name, new_tables_result, new_schemas_result, context.query_metadata, data_path,
 			    separator));
 		}
-		return DuckLakeMetadataManager::WriteNewDataFilesSqlBatch(files, resolved_paths);
+		return DuckLakeMetadataManager::WriteNewDataFilesSqlBatch(files, resolved_paths,
+		                                                           context.enc_util, context.kek);
 	};
 
 	// write new data / data files
@@ -1524,7 +1525,8 @@ string DuckLakeTransactionState::CommitChanges(DuckLakeCommitState &commit_state
 			    file.table_id, file.path, new_tables_result, new_schemas_result, context.query_metadata, data_path,
 			    separator));
 		}
-		batch_queries += DuckLakeMetadataManager::WriteNewDeleteFiles(file_list, resolved_delete_paths);
+		batch_queries += DuckLakeMetadataManager::WriteNewDeleteFiles(file_list, resolved_delete_paths,
+		                                                               context.enc_util, context.kek);
 
 		// write new inlined deletes (for inlined data tables)
 		auto inlined_deletes = GetNewInlinedDeletes(commit_state);

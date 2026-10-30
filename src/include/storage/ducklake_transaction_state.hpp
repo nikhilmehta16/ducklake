@@ -13,6 +13,8 @@
 
 namespace duckdb {
 
+class EncryptionUtil;
+
 struct DuckLakeColumnSchemaEntry {
 	FieldIndex field_index;
 	string column_name;
@@ -97,6 +99,9 @@ struct DuckLakeCommitContext {
 	DuckLakeSnapshotCommit commit_info;
 	//! When true, Commit() skips the post-commit DropEmptySupersededInlinedTables cleanup.
 	bool skip_drop_empty_inlined = false;
+	//! Optional KEK wrapping for data/delete file encryption keys in the real catalog.
+	EncryptionUtil *enc_util = nullptr;
+	string kek;
 };
 
 //! Holds the per-transaction mutable change state (new/dropped/renamed catalog entries, local file
