@@ -1,17 +1,20 @@
 #include "common/parquet_file_scanner.hpp"
+#include "storage/ducklake_catalog.hpp"
 #include "duckdb/catalog/catalog_entry/table_function_catalog_entry.hpp"
 #include "duckdb/main/database.hpp"
 #include "duckdb/parser/tableref/table_function_ref.hpp"
 
 namespace duckdb {
 
-ParquetFileScanner::ParquetFileScanner(ClientContext &context, const DuckLakeFileData &file)
-    : ParquetFileScanner(context, file, nullptr, nullptr) {
+ParquetFileScanner::ParquetFileScanner(ClientContext &context, const DuckLakeFileData &file,
+                                       const DuckLakeCatalog *catalog)
+    : ParquetFileScanner(context, file, nullptr, nullptr, catalog) {
 }
 
 ParquetFileScanner::ParquetFileScanner(ClientContext &context, const DuckLakeFileData &file,
                                        table_function_get_multi_file_reader_t multi_file_reader_creator_p,
-                                       shared_ptr<TableFunctionInfo> function_info_p)
+                                       shared_ptr<TableFunctionInfo> function_info_p,
+                                       const DuckLakeCatalog *catalog)
     : context(context) {
 	auto &instance = DatabaseInstance::GetDatabase(context);
 	ExtensionLoader loader(instance, "ducklake");
@@ -29,8 +32,9 @@ ParquetFileScanner::ParquetFileScanner(ClientContext &context, const DuckLakeFil
 	named_params["hive_partitioning"] = Value::BOOLEAN(false);
 
 	if (!file.encryption_key.empty()) {
+		auto raw_key = catalog ? catalog->UnwrapEncryptionKey(file.encryption_key) : file.encryption_key;
 		child_list_t<Value> encryption_values;
-		encryption_values.emplace_back("footer_key_value", Value::BLOB_RAW(file.encryption_key));
+		encryption_values.emplace_back("footer_key_value", Value::BLOB_RAW(raw_key));
 		named_params["encryption_config"] = Value::STRUCT(std::move(encryption_values));
 	}
 

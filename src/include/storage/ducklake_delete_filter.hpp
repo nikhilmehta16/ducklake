@@ -13,6 +13,8 @@
 
 namespace duckdb {
 
+class DuckLakeCatalog;
+
 struct DuckLakeDeleteData {
 	vector<idx_t> deleted_rows;
 	vector<idx_t> snapshot_ids;
@@ -50,15 +52,18 @@ public:
 	optional_idx snapshot_filter;
 
 	idx_t Filter(row_t start_row_index, idx_t count, SelectionVector &result_sel) override;
-	void Initialize(ClientContext &context, const DuckLakeFileData &delete_file);
+	void Initialize(ClientContext &context, const DuckLakeFileData &delete_file,
+	                const DuckLakeCatalog *catalog = nullptr);
 	void Initialize(const DuckLakeInlinedDataDeletes &inlined_deletes);
-	void Initialize(ClientContext &context, const DuckLakeDeleteScanEntry &delete_scan);
+	void Initialize(ClientContext &context, const DuckLakeDeleteScanEntry &delete_scan,
+	                const DuckLakeCatalog *catalog = nullptr);
 	void SetMaxRowCount(idx_t max_row_count);
 	void SetSnapshotFilter(idx_t snapshot_filter);
 
 	static DeleteFileScanResult ScanDeleteFile(ClientContext &context, const DuckLakeFileData &delete_file,
 	                                           optional_idx snapshot_filter_min = optional_idx(),
-	                                           optional_idx snapshot_filter_max = optional_idx());
+	                                           optional_idx snapshot_filter_max = optional_idx(),
+	                                           const DuckLakeCatalog *catalog = nullptr);
 	//! Scan a puffin deletion vector file and return the deleted row positions
 	static DeleteFileScanResult ScanDeletionVectorFile(ClientContext &context, const DuckLakeFileData &delete_file);
 
@@ -66,11 +71,13 @@ private:
 	//! Scan the data file to get the global row_ids at specific file positions
 	//! Returns a map from file_position to global_row_id
 	static unordered_map<idx_t, idx_t> ScanDataFileRowIds(ClientContext &context, const DuckLakeFileData &data_file,
-	                                                      const unordered_set<idx_t> &file_positions);
+	                                                      const unordered_set<idx_t> &file_positions,
+	                                                      const DuckLakeCatalog *catalog = nullptr);
 	//! Populate scan_snapshot_map from a position-to-snapshot mapping
 	//! Handles conversion from file positions to row_ids if the data file has embedded row_ids
 	void PopulateSnapshotMapFromPositions(ClientContext &context, const DuckLakeFileData &data_file,
-	                                      const unordered_map<idx_t, idx_t> &position_to_snapshot) const;
+	                                      const unordered_map<idx_t, idx_t> &position_to_snapshot,
+	                                      const DuckLakeCatalog *catalog = nullptr) const;
 };
 
 } // namespace duckdb

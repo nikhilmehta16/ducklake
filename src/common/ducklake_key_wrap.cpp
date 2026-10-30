@@ -13,6 +13,7 @@ namespace duckdb {
 constexpr idx_t DuckLakeKeyWrap::KEK_SIZE;
 constexpr idx_t DuckLakeKeyWrap::IV_SIZE;
 constexpr idx_t DuckLakeKeyWrap::TAG_SIZE;
+constexpr const char DuckLakeKeyWrap::MAGIC[];
 constexpr idx_t DuckLakeKeyWrap::MAGIC_SIZE;
 
 string DuckLakeKeyWrap::DeriveKEK(const string &passphrase) {
@@ -36,7 +37,7 @@ string DuckLakeKeyWrap::DeriveKEK(const string &passphrase) {
 }
 
 bool DuckLakeKeyWrap::IsWrapped(const string &value) {
-	if (value.size() < MAGIC_SIZE) {
+	if (value.size() < MAGIC_SIZE + IV_SIZE + TAG_SIZE + 1) {
 		return false;
 	}
 	return memcmp(value.data(), MAGIC, MAGIC_SIZE) == 0;

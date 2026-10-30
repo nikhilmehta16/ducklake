@@ -1,13 +1,14 @@
 #include "functions/ducklake_table_functions.hpp"
 #include "storage/ducklake_table_entry.hpp"
 #include "storage/ducklake_transaction.hpp"
+#include "storage/ducklake_catalog.hpp"
 #include "common/ducklake_util.hpp"
 #include "storage/ducklake_transaction_changes.hpp"
 #include "duckdb/planner/tableref/bound_at_clause.hpp"
 
 namespace duckdb {
 
-static void AddFileInfo(DuckLakeFileData &file_info, vector<Value> &row_values) {
+static void AddFileInfo(DuckLakeFileData &file_info, vector<Value> &row_values, const DuckLakeCatalog &catalog) {
 	// add the file info - if we have a file
 	if (file_info.path.empty()) {
 		// no file - push NULL values
@@ -28,7 +29,7 @@ static void AddFileInfo(DuckLakeFileData &file_info, vector<Value> &row_values) 
 	if (file_info.encryption_key.empty()) {
 		row_values.emplace_back();
 	} else {
-		row_values.emplace_back(Value::BLOB_RAW(file_info.encryption_key));
+		row_values.emplace_back(Value::BLOB_RAW(catalog.UnwrapEncryptionKey(file_info.encryption_key)));
 	}
 }
 
@@ -95,10 +96,10 @@ static unique_ptr<FunctionData> DuckLakeListFilesBind(ClientContext &context, Ta
 		vector<Value> row_values;
 		// data file
 		auto &data_file = file.file;
-		AddFileInfo(data_file, row_values);
+		AddFileInfo(data_file, row_values, catalog);
 
 		auto &delete_file = file.delete_file;
-		AddFileInfo(delete_file, row_values);
+		AddFileInfo(delete_file, row_values, catalog);
 		result->rows.push_back(std::move(row_values));
 	}
 	return std::move(result);
