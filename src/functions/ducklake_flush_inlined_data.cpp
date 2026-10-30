@@ -479,8 +479,9 @@ LEFT JOIN (
 					file_info.existing_delete_path_is_relative = chunk->GetValue(7, row_idx).GetValue<bool>();
 					file_info.existing_delete_begin_snapshot = chunk->GetValue(8, row_idx).GetValue<idx_t>();
 					if (!chunk->GetValue(9, row_idx).IsNull()) {
-						file_info.existing_delete_encryption_key =
-						    Blob::FromBase64(chunk->GetValue(9, row_idx).GetValue<string>());
+						auto stored = chunk->GetValue(9, row_idx).GetValue<string>();
+						auto raw_blob = Blob::FromBase64(string_t(stored));
+						file_info.existing_delete_encryption_key = catalog.UnwrapEncryptionKey(raw_blob);
 					}
 					if (!chunk->GetValue(10, row_idx).IsNull()) {
 						file_info.existing_delete_format =

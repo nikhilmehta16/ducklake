@@ -138,6 +138,16 @@ void DuckLakeInitializer::InitializeNewDuckLake(DuckLakeTransaction &transaction
 	}
 	auto &metadata_manager = transaction.GetMetadataManager();
 	metadata_manager.InitializeDuckLake(has_explicit_schema, catalog.Encryption());
+	if (!catalog.KeyEncryptionKey().empty() && catalog.Encryption() != DuckLakeEncryption::ENCRYPTED) {
+		throw InvalidInputException("KEY_ENCRYPTION_KEY requires ENCRYPTED true");
+	}
+	if (!catalog.KeyEncryptionKey().empty()) {
+		auto result = transaction.Query(
+		    "INSERT INTO {METADATA_CATALOG}.ducklake_metadata (key, value) VALUES ('key_wrapping', 'kek1')");
+		if (result->HasError()) {
+			result->GetErrorObject().Throw("Failed to store key_wrapping metadata: ");
+		}
+	}
 	if (catalog.Encryption() == DuckLakeEncryption::AUTOMATIC) {
 		// default to unencrypted
 		catalog.SetEncryption(DuckLakeEncryption::UNENCRYPTED);
@@ -208,6 +218,13 @@ void DuckLakeInitializer::LoadExistingDuckLake(DuckLakeTransaction &transaction)
 				catalog.SetEncryption(DuckLakeEncryption::UNENCRYPTED);
 			} else {
 				throw NotImplementedException("Encrypted should be either true or false");
+			}
+		}
+		if (tag.key == "key_wrapping" && tag.value == "kek1") {
+			if (catalog.KeyEncryptionKey().empty()) {
+				throw InvalidInputException(
+				    "This catalog uses key wrapping (key_wrapping=kek1). "
+				    "Provide KEY_ENCRYPTION_KEY at ATTACH time.");
 			}
 		}
 		options.config_options[tag.key] = tag.value;

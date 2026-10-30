@@ -482,7 +482,7 @@ DuckLakeCopyOptions DuckLakeInsert::GetCopyOptions(ClientContext &context, DuckL
 	info->options["field_ids"] = std::move(field_input);
 	if (!copy_input.encryption_key.empty()) {
 		child_list_t<Value> values;
-		values.emplace_back("footer_key_value", Value::BLOB_RAW(copy_input.encryption_key));
+		values.emplace_back("footer_key_value", Value::BLOB_RAW(catalog.UnwrapEncryptionKey(copy_input.encryption_key)));
 		vector<Value> encryption_input;
 		encryption_input.push_back(Value::STRUCT(std::move(values)));
 		info->options["encryption_config"] = std::move(encryption_input);
@@ -711,17 +711,28 @@ PhysicalOperator &DuckLakeInsert::PlanInsert(ClientContext &context, PhysicalPla
 
 string DuckLakeCatalog::GenerateEncryptionKey(ClientContext &context) const {
 	if (Encryption() != DuckLakeEncryption::ENCRYPTED) {
-		// not encrypted
 		return string();
 	}
-	// generate an encryption key
 	auto &engine = RandomEngine::Get(context);
 	static constexpr const idx_t ENCRYPTION_KEY_SIZE = 16;
 	data_t bytes[ENCRYPTION_KEY_SIZE];
 	for (idx_t i = 0; i < ENCRYPTION_KEY_SIZE; i += 4) {
 		*reinterpret_cast<uint32_t *>(bytes + i) = engine.NextRandomInteger();
 	}
-	return string(char_ptr_cast(bytes), ENCRYPTION_KEY_SIZE);
+	string raw_dek(char_ptr_cast(bytes), ENCRYPTION_KEY_SIZE);
+	if (!options.key_encryption_key.empty()) {
+		auto &enc_util = *GetDatabase().GetEncryptionUtil();
+		return DuckLakeKeyWrap::Wrap(enc_util, options.key_encryption_key, raw_dek);
+	}
+	return raw_dek;
+}
+
+string DuckLakeCatalog::UnwrapEncryptionKey(const string &maybe_wrapped) const {
+	if (maybe_wrapped.empty()) {
+		return maybe_wrapped;
+	}
+	auto &enc_util = *GetDatabase().GetEncryptionUtil();
+	return DuckLakeKeyWrap::Unwrap(enc_util, options.key_encryption_key, maybe_wrapped);
 }
 
 static void ResolveColumnRefs(unique_ptr<Expression> &expr) {

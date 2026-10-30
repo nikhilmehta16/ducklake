@@ -10,6 +10,7 @@
 
 #include "common/ducklake_encryption.hpp"
 #include "common/ducklake_options.hpp"
+#include "common/ducklake_key_wrap.hpp"
 #include "common/ducklake_name_map.hpp"
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/main/client_context_state.hpp"
@@ -215,8 +216,16 @@ public:
 	}
 
 	void SetEncryption(DuckLakeEncryption encryption);
-	// Generate an encryption key for writing (or empty if encryption is disabled)
+	// Generate an encryption key for writing (or empty if encryption is disabled).
+	// When a KEK is set, the returned key is already wrapped.
 	string GenerateEncryptionKey(ClientContext &context) const;
+
+	const string &KeyEncryptionKey() const {
+		return options.key_encryption_key;
+	}
+
+	// Unwrap a potentially wrapped DEK for Parquet use. Legacy (unwrapped) keys pass through.
+	string UnwrapEncryptionKey(const string &maybe_wrapped) const;
 
 	void OnDetach(ClientContext &context) override;
 

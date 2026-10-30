@@ -4,6 +4,7 @@
 #include "storage/ducklake_catalog.hpp"
 #include "storage/ducklake_transaction_manager.hpp"
 #include "storage/ducklake_secret.hpp"
+#include "common/ducklake_key_wrap.hpp"
 
 namespace duckdb {
 
@@ -56,6 +57,8 @@ static void HandleDuckLakeOption(DuckLakeOptions &options, const string &option,
 		options.automatic_migration = BooleanValue::Get(value.DefaultCastAs(LogicalType::BOOLEAN));
 	} else if (lcase == "busy_timeout") {
 		options.busy_timeout = UBigIntValue::Get(value.DefaultCastAs(LogicalType::UBIGINT));
+	} else if (lcase == "key_encryption_key") {
+		options.key_encryption_key = DuckLakeKeyWrap::DeriveKEK(value.ToString());
 	} else {
 		throw NotImplementedException("Unsupported option %s for DuckLake", option);
 	}
